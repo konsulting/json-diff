@@ -9,6 +9,7 @@ class JsonDiff
     protected $exclude = [];
     protected $original;
     protected $new;
+    protected $divider = '||';
 
     /**
      * JsonDiff constructor.
@@ -21,6 +22,8 @@ class JsonDiff
     }
 
     /**
+     * Set indices to ignore when checking the diff
+     *
      * @param string|array $value
      *
      * @return $this
@@ -35,23 +38,52 @@ class JsonDiff
     }
 
     /**
-     * @param string $original
-     * @param string $new
+     * Set the divider used for the flatten and inflate operations
      *
-     * @return array
-     * @throws \Exception
+     * @param null $divider
+     *
+     * @return $this
      */
-    public function compare($original, $new)
+    public function setDivider($divider = null)
     {
-        $this->original = $original;
+        $this->divider = $divider ?: '||';
 
-        return $this->compareTo($new);
+        return $this;
     }
 
     /**
+     * Simple factory method for cleaner usage
+     *
+     * @param $original
+     *
+     * @return static
+     */
+    public static function original($original)
+    {
+        return new static($original);
+    }
+
+    /**
+     * Simple call to do everything tidyly
+     *
+     * @param string $original
      * @param string $new
+     * @param array  $exclude
      *
      * @return array
+     * @throws \Konsulting\Exceptions\JsonDecodeFailed
+     */
+    public static function compare($original, $new, $exclude = [])
+    {
+        return static::original($original)->exclude($exclude)->compareTo($new);
+    }
+
+    /**
+     * Perform comparison of the original to this new JSON.
+     *
+     * @param string $new
+     *
+     * @return JsonDiffResult
      * @throws \Konsulting\Exceptions\JsonDecodeFailed
      */
     public function compareTo($new)
@@ -59,6 +91,9 @@ class JsonDiff
         $original = $this->decode($this->original);
         $new = $this->decode($new);
 
+        // we flatten the whole array into a single level array with the
+        // indices representing the full depth, this lets us diff in
+        // a good level of detail.
         $flatOriginal = $this->flatten($original);
         $flatNew = $this->flatten($new);
 
@@ -68,17 +103,12 @@ class JsonDiff
         $added = array_diff_assoc($flatNew, $flatOriginal);
         $removed = array_diff_assoc($flatOriginal, $flatNew);
 
-        $diff = [
-            'added' => $this->inflate($added),
-            'removed' => $this->inflate($removed),
-        ];
-
-        $changed = ! empty($added) || ! empty($removed);
-
-        return compact('original', 'new', 'diff', 'changed');
+        return new JsonDiffResult($original, $new, $this->inflate($added), $this->inflate($removed));
     }
 
     /**
+     * Try to decode the JSON we were passed
+     *
      * @param $json
      *
      * @return array
@@ -96,6 +126,8 @@ class JsonDiff
     }
 
     /**
+     * Strip data that we want to ignore for diff-ing. It is a deep operation, digging into the data.
+     *
      * @param array $columns
      * @param array $array
      *
@@ -119,60 +151,76 @@ class JsonDiff
     }
 
     /**
-     * @param        $arr
+     * Flatten the json into a single level array with keys that represent the nested data positions.
+     *
+     * @param        $toFlatten
      * @param string $base
-     * @param string $divider_char
      *
      * @return array
      */
-    public function flatten($arr, $base = "", $divider_char = "||")
+    public function flatten($toFlatten, $base = "")
     {
-        $ret = [];
-        if (is_array($arr)) {
-            foreach ($arr as $k => $v) {
-                if (is_array($v)) {
-                    $tmp_array = $this->flatten($v, $base.$k.$divider_char, $divider_char);
-                    $ret = array_merge($ret, $tmp_array);
-                } else {
-                    $ret[$base.$k] = $v;
-                }
-            }
+        if (! is_array($toFlatten)) {
+            return $toFlatten;
         }
-        return $ret;
+
+        $flattened = [];
+        foreach ($toFlatten as $key => $value) {
+            $flattenedValue = $this->flatten($value, $base.$key.$this->divider);
+
+            $flattened = array_merge(
+                $flattened,
+                is_array($flattenedValue) ? $flattenedValue : [$base.$key => $flattenedValue]
+            );
+        }
+
+        return $flattened;
     }
 
     /**
-     * @param        $arr
-     * @param string $divider_char
+     * Inflate the single level array back up to a multi-dimensional PHP array
      *
-     * @return array|bool
+     * @param        $toInflate
+     *
+     * @return mixed
      */
-    public function inflate($arr, $divider_char = "||")
+    public function inflate($toInflate)
     {
-        if (!is_array($arr)) {
-            return false;
+        if (!is_array($toInflate)) {
+            return $toInflate;
         }
 
-        $split = '/' . preg_quote($divider_char, '/') . '/';
+        $inflated = [];
 
-        $ret = [];
-        foreach ($arr as $key => $val) {
-            $parts = preg_split($split, $key, -1, PREG_SPLIT_NO_EMPTY);
-            $leafpart = array_pop($parts);
-            $parent = &$ret;
-            foreach ($parts as $part) {
-                if (!isset($parent[$part])) {
-                    $parent[$part] = [];
-                } elseif (!is_array($parent[$part])) {
-                    $parent[$part] = [];
-                }
-                $parent = &$parent[$part];
-            }
-
-            if (empty($parent[$leafpart])) {
-                $parent[$leafpart] = $val;
-            }
+        foreach ($toInflate as $complexKey => $value) {
+            $this->inflateByComplexKey($inflated, $complexKey, $value);
         }
-        return $ret;
+
+        return $inflated;
+    }
+
+    /**
+     * Add a value to the array, by working through the nesting and popping the
+     * value in the correct place. The array is passed by reference and
+     * worked on directly.
+     *
+     * @param $inflated
+     * @param $complexKey
+     * @param $value
+     */
+    protected function inflateByComplexKey(&$inflated, $complexKey, $value)
+    {
+        $divider = '/' . preg_quote($this->divider, '/') . '/';
+        $keys = preg_split($divider, $complexKey, -1, PREG_SPLIT_NO_EMPTY);
+        $finalKey = array_pop($keys);
+
+        foreach ($keys as $key) {
+            if (!isset($inflated[$key])) {
+                $inflated[$key] = [];
+            }
+            $inflated = &$inflated[$key];
+        }
+
+        $inflated[$finalKey] = $value;
     }
 }

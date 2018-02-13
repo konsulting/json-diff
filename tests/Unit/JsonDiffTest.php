@@ -12,7 +12,7 @@ class JsonDiffTest extends TestCase
     {
         $diff = new JsonDiff('{}');
 
-        $this->assertEquals(['a' => 1], $diff->compareTo('{"a":"1"}')['diff']['added']);
+        $this->assertEquals(['a' => 1], $diff->compareTo('{"a":"1"}')->added);
     }
 
     /** @test */
@@ -21,7 +21,7 @@ class JsonDiffTest extends TestCase
         $diff = new JsonDiff('{}');
         $diff->exclude(['b']);
 
-        $this->assertEquals(['a' => 1], $diff->compareTo('{"a":"1","b":"2"}')['diff']['added']);
+        $this->assertEquals(['a' => 1], $diff->compareTo('{"a":"1","b":"2"}')->added);
     }
 
     /** @test */
@@ -91,9 +91,9 @@ class JsonDiffTest extends TestCase
         $diff = new JsonDiff();
         $result = $diff->compare($json1, $json2);
 
-        $this->assertCount(3, $result['diff']['removed']);
-        $this->assertEquals(['required'], $result['diff']['removed'][1]['validation']);
-        $this->assertEquals(json_decode(stub('diff.json'), true), $result['diff']);
-        $this->assertTrue($result['changed']);
+        $this->assertCount(3, $result->removed);
+        $this->assertEquals(['required'], $result->removed[1]['validation']);
+        $this->assertEquals(json_decode(stub('diff.json'), true), $result->diff);
+        $this->assertTrue($result->changed);
     }
 }
