@@ -1,5 +1,5 @@
 {
-    "name": "konsulting/new-package",
+    "name": "konsulting/json-diff",
     "description": "",
     "require": {
         "php": ">=5.6",
