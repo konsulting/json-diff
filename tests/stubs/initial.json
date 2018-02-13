@@ -1,0 +1,23 @@
+[
+    {
+        "name": "first",
+        "label": "first",
+        "validation": []
+    },
+    {
+        "name": "second",
+        "label": "second",
+        "validation": ["required"]
+    },
+    {
+        "name": "third",
+        "label": "third",
+        "nested": {
+            "funky": "one"
+        }
+    },
+    {
+        "name": "fourth",
+        "label": "fourth"
+    }
+]
