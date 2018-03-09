@@ -25,6 +25,15 @@ class JsonDiffTest extends TestCase
     }
 
     /** @test */
+    public function we_can_change_the_original()
+    {
+        $diff = new JsonDiff('{}');
+        $diff->setOriginal('{"a":"1"}');
+
+        $this->assertFalse($diff->compareTo('{"a":"1"}')->changed);
+    }
+
+    /** @test */
     public function it_decodes_to_an_array_properly()
     {
         $json = stub('initial.json');
@@ -95,5 +104,67 @@ class JsonDiffTest extends TestCase
         $this->assertEquals(['required'], $result->removed[1]['validation']);
         $this->assertEquals(json_decode(stub('diff.json'), true), $result->diff);
         $this->assertTrue($result->changed);
+    }
+
+    /** @test */
+    public function it_ignores_keys()
+    {
+        $original = '[
+            {
+                "name": "Keoghan",
+                "email": "keoghan@klever.co.uk",
+                "cost": 0
+            }
+        ]';
+
+        $compareTo = '[
+            {
+                "name": "Keoghan",
+                "email": "keoghan@klever.co.uk",
+                "cost": 100
+            }
+        ]';
+
+        $diff = new JsonDiff($original);
+
+        $this->assertFalse($diff->exclude(['cost'])->compareTo($compareTo)->changed);
+
+        $this->assertFalse((new JsonDiff)->setOriginal($original)->exclude(['cost'])->compareTo($compareTo)->changed);
+        $this->assertFalse(JsonDiff::compare($original, $compareTo, ['cost'])->changed);
+    }
+
+    /** @test */
+    public function it_ignores_deep_keys()
+    {
+        $original = '[
+            {
+                "name": "Keoghan",
+                "email": "keoghan@klever.co.uk",
+                "cost": {
+                    "nested": {
+                        "price": 0
+                    }
+                }
+            }
+        ]';
+
+        $compareTo = '[
+            {
+                "name": "Keoghan",
+                "email": "keoghan@klever.co.uk",
+                "cost": {
+                    "nested": {
+                        "price": 100
+                    }
+                }
+            }
+        ]';
+
+        $diff = new JsonDiff($original);
+
+        $this->assertFalse($diff->exclude(['price'])->compareTo($compareTo)->changed);
+
+        $this->assertFalse((new JsonDiff)->setOriginal($original)->exclude(['price'])->compareTo($compareTo)->changed);
+        $this->assertFalse(JsonDiff::compare($original, $compareTo, ['price'])->changed);
     }
 }

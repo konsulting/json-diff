@@ -30,9 +30,21 @@ class JsonDiff
      */
     public function exclude($value)
     {
-        $value = ! $value ? [] : $value;
+        if (! empty($value)) {
+            $this->exclude = is_array($value) ? $value : [$value];
+        }
 
-        $this->exclude = is_array($value) ? $value : [$value];
+        return $this;
+    }
+
+    /**
+     * Clear our exclusions
+     *
+     * @return $this
+     */
+    public function clearExclusions()
+    {
+        $this->exclude = [];
 
         return $this;
     }
@@ -47,6 +59,20 @@ class JsonDiff
     public function setDivider($divider = null)
     {
         $this->divider = $divider ?: '||';
+
+        return $this;
+    }
+
+    /**
+     * Allow us to set the original json for comparison
+     *
+     * @param $value
+     *
+     * @return $this
+     */
+    public function setOriginal($value)
+    {
+        $this->original = $value;
 
         return $this;
     }
@@ -70,10 +96,10 @@ class JsonDiff
      * @param string $new
      * @param array  $exclude
      *
-     * @return array
+     * @return \Konsulting\JsonDiffResult
      * @throws \Konsulting\Exceptions\JsonDecodeFailed
      */
-    public static function compare($original, $new, $exclude = [])
+    public static function compare($original, $new, $exclude = null)
     {
         return static::original($original)->exclude($exclude)->compareTo($new);
     }
