@@ -59,21 +59,25 @@ class JsonDiffResult implements ArrayAccess
     }
 
     // Array Access
+    #[\ReturnTypeWillChange]
     public function offsetExists($offset)
     {
         return isset($this->{$offset}) ? $this->{$offset} : null;
     }
 
+    #[\ReturnTypeWillChange]
     public function offsetGet($offset)
     {
         return isset($this->{$offset}) ? $this->{$offset} : null;
     }
 
+    #[\ReturnTypeWillChange]
     public function offsetSet($offset, $value)
     {
         throw new CannotChangeDiffResult;
     }
 
+    #[\ReturnTypeWillChange]
     public function offsetUnset($offset) {
          throw new CannotChangeDiffResult;
     }
